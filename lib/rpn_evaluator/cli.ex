@@ -37,31 +37,37 @@ defmodule RpnEvaluator.CLI do
     end
   end
 
-  defp handle_input(input, %State{} = state) when input in ["exit", "quit"] do
-    IO.puts("Saliendo del evaluador RPN. ¡Hasta luego!")
-    :ok
-  end
-
-  defp handle_input("", %State{} = state) do
-    loop(state)
-  end
-
-  defp handle_input("vars", %State{env: env} = state) do
-    print_variables(env)
-    loop(state)
-  end
-
-  defp handle_input("stack", %State{stack: stack} = state) do
-    print_stack(stack)
-    loop(state)
-  end
-
-  defp handle_input("help", %State{} = state) do
-    print_help()
-    loop(state)
-  end
-
   defp handle_input(input, %State{} = state) do
+    case String.downcase(input) do
+      cmd when cmd in ["exit", "quit"] ->
+        IO.puts("Saliendo del evaluador RPN. ¡Hasta luego!")
+        :ok
+
+      "" ->
+        loop(state)
+
+      "vars" ->
+        print_variables(state.env)
+        loop(state)
+
+      "stack" ->
+        print_stack(state.stack)
+        loop(state)
+
+      "clear" ->
+        IO.puts("Pila vaciada.")
+        loop(%State{state | stack: []})
+
+      "help" ->
+        print_help()
+        loop(state)
+
+      _other ->
+        eval_expression(input, state)
+    end
+  end
+
+  defp eval_expression(input, %State{} = state) do
     with {:ok, tokens} <- Parser.parse(input),
          {:ok, new_state} <- Evaluator.eval_tokens(tokens, state) do
       print_evaluation_result(new_state)
@@ -118,28 +124,36 @@ defmodule RpnEvaluator.CLI do
   end
 
   defp print_variables(env) do
-    vars = Environment.all_variables(env)
+    vars = Environment.variables_with_status(env)
 
     if Enum.empty?(vars) do
       IO.puts("No hay variables definidas en memoria.")
     else
       IO.puts("=== Variables Activas en Memoria (Tabla de Símbolos) ===")
-      IO.puts(String.pad_trailing("Nombre", 14) <> String.pad_trailing("Tipo", 12) <> String.pad_trailing("Valor", 16) <> "Ámbito")
-      IO.puts(String.duplicate("-", 56))
+      IO.puts(
+        String.pad_trailing("Nombre", 12) <>
+        String.pad_trailing("Tipo", 10) <>
+        String.pad_trailing("Valor", 14) <>
+        String.pad_trailing("Ámbito", 12) <>
+        "Estado"
+      )
+      IO.puts(String.duplicate("-", 62))
 
-      Enum.each(vars, fn {name, %Value{type: type, raw: raw}, level} ->
+      Enum.each(vars, fn {name, %Value{type: type, raw: raw}, level, status} ->
         scope_label = if level == 0, do: "Global (0)", else: "Local (#{level})"
         type_str = Atom.to_string(type)
         val_str = inspect(raw)
+        status_str = if status == :active, do: "[Activa]", else: "[Oculta (Shadowed)]"
 
         IO.puts(
-          String.pad_trailing(name, 14) <>
-          String.pad_trailing(type_str, 12) <>
-          String.pad_trailing(val_str, 16) <>
-          scope_label
+          String.pad_trailing(name, 12) <>
+          String.pad_trailing(type_str, 10) <>
+          String.pad_trailing(val_str, 14) <>
+          String.pad_trailing(scope_label, 12) <>
+          status_str
         )
       end)
-      IO.puts(String.duplicate("=", 56))
+      IO.puts(String.duplicate("=", 62))
     end
   end
 

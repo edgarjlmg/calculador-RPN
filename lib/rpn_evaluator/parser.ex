@@ -37,27 +37,31 @@ defmodule RpnEvaluator.Parser do
 
   @doc """
   Clasifica un lexema individual en su correspondiente token estructurado.
+  Soporta normalización insensible a mayúsculas/minúsculas para palabras clave y booleanos,
+  así como signos explícitos positivos/negativos en números y operadores relacionales extendidos.
   """
   @spec classify_token(String.t()) :: {:ok, token()} | {:error, {:invalid_token, String.t()}}
   def classify_token(token) do
+    downcased = String.downcase(token)
+
     cond do
-      token in ["+", "-", "*", "/", "==", "!=", "<", ">", "="] ->
+      token in ["+", "-", "*", "/", "==", "!=", "<", ">", "<=", ">=", "="] ->
         {:ok, {:operator, parse_operator(token)}}
 
-      token in ["begin", "end", "vars", "stack", "clear", "help", "exit", "quit"] ->
-        {:ok, {:command, String.to_atom(token)}}
+      downcased in ["begin", "end", "vars", "stack", "clear", "help", "exit", "quit"] ->
+        {:ok, {:command, String.to_atom(downcased)}}
 
-      token == "true" ->
+      downcased == "true" ->
         {:ok, {:value, Value.new_boolean(true)}}
 
-      token == "false" ->
+      downcased == "false" ->
         {:ok, {:value, Value.new_boolean(false)}}
 
       integer_string?(token) ->
-        {:ok, {:value, Value.new_integer(String.to_integer(token))}}
+        {:ok, {:value, Value.new_integer(parse_integer(token))}}
 
       float_string?(token) ->
-        {:ok, {:value, Value.new_float(String.to_float(token))}}
+        {:ok, {:value, Value.new_float(parse_float(token))}}
 
       identifier_string?(token) ->
         {:ok, {:identifier, token}}
@@ -75,17 +79,36 @@ defmodule RpnEvaluator.Parser do
   defp parse_operator("!="), do: :neq
   defp parse_operator("<"), do: :lt
   defp parse_operator(">"), do: :gt
+  defp parse_operator("<="), do: :lte
+  defp parse_operator(">="), do: :gte
   defp parse_operator("="), do: :assign
 
+  defp normalize_sign("+" <> rest), do: rest
+  defp normalize_sign(str), do: str
+
+  defp parse_integer(str) do
+    str
+    |> normalize_sign()
+    |> String.to_integer()
+  end
+
+  defp parse_float(str) do
+    str
+    |> normalize_sign()
+    |> String.to_float()
+  end
+
   defp integer_string?(str) do
-    case Integer.parse(str) do
+    clean = normalize_sign(str)
+    case Integer.parse(clean) do
       {_int, ""} -> true
       _ -> false
     end
   end
 
   defp float_string?(str) do
-    case Float.parse(str) do
+    clean = normalize_sign(str)
+    case Float.parse(clean) do
       {_float, ""} -> true
       _ -> false
     end

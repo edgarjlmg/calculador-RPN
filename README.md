@@ -26,11 +26,13 @@ El evaluador procesa expresiones matemáticas y lógicas basadas estrictamente e
 
 ### 2.1. Evaluación en Pila y Manejo Idiomático de Errores
 - **Operaciones Aritméticas Básicas:** Suma (`+`), Resta (`-`), Multiplicación (`*`) y División (`/`).
-- **Operaciones Lógicas y Relacionales:** Menor que (`<`), Mayor que (`>`), Igualdad (`==`) y Desigualdad (`!=`).
+  - Soporta enteros y flotantes, números negativos (`-15`) y prefijos positivos explícitos (`+5`).
+- **Operaciones Lógicas y Relacionales:** Menor que (`<`), Mayor que (`>`), Menor o igual (`<=`), Mayor o igual (`>=`), Igualdad (`==`) y Desigualdad (`!=`).
 - **Manejo de Errores sin Abortos Abruptos:** Todos los errores se capturan y retornan de forma idiomática mediante tuplas `{:error, reason, state}` usando cláusulas `with` y pattern matching:
   - **División por cero:** `{:error, :division_by_zero}` (ej. `10 0 /`).
   - **Pila insuficiente (Stack underflow):** `{:error, :stack_underflow}` cuando un operador requiere más operandos de los presentes.
   - **Tokens inválidos:** `{:error, {:invalid_token, token}}` para caracteres no reconocidos.
+  - **Destino inválido de asignación:** `{:error, {:invalid_assignment_target, target}}` si se intenta asignar a un literal (ej. `10 20 =`).
 
 ### 2.2. Sistema de Tipos del Evaluador
 - Modelado mediante tipos compuestos nativos (`defstruct` y `@type` en `RpnEvaluator.Types.Value`):
@@ -45,7 +47,8 @@ El evaluador procesa expresiones matemáticas y lógicas basadas estrictamente e
   - `x 10 =` asigna `10` a la variable `x`.
   - `x 5 2 + =` evalúa la subexpresión `5 + 2 = 7` y vincula `7` a `x`.
   - `x 5 + 2 *` recupera el valor de `x` y evalúa `(x + 5) * 2`.
-- **Inspección de Memoria (`vars`):** Muestra todas las variables activas en la tabla de símbolos indicando su nombre, tipo, valor y nivel de ámbito.
+  - `x x 1 + =` reasigna a `x` su valor previo incrementado en 1.
+- **Inspección de Memoria (`vars`):** Muestra todas las variables activas en la tabla de símbolos indicando su nombre, tipo, valor, nivel de ámbito y estado de visibilidad (`[Activa]` vs `[Oculta (Shadowed)]`).
 - **Paso Explícito de Parámetros e Inmutabilidad:**
   - La pila (`stack`) y el entorno (`env`) se pasan como argumentos explícitos a cada subrutina `(tokens, state)`.
   - Las funciones no mutan estructuras globales; retornan un nuevo estado inmutable `{:ok, %State{stack: new_stack, env: new_env}}`.
@@ -54,7 +57,7 @@ El evaluador procesa expresiones matemáticas y lógicas basadas estrictamente e
 - El comando `begin` abre un nuevo bloque de alcance local temporal (insertando un nuevo mapa en la pila de ámbitos `[ %{} | scopes ]`).
 - Las variables declaradas o modificadas dentro del bloque local aplican **shadowing** sobre variables homónimas de ámbitos exteriores.
 - El comando `end` destruye el ámbito local activo (`pop_scope`), restaurando intactos los valores de las variables del ámbito exterior.
-- Soporta múltiples niveles de anidamiento (`begin ... begin ... end ... end`).
+- Soporta múltiples niveles de anidamiento (`begin ... begin ... end ... end`) e insensibilidad a mayúsculas (`BEGIN`, `END`).
 
 ---
 
@@ -109,9 +112,9 @@ mix test
 Salida esperada:
 ```text
 Compiling 5 files (.ex)
-..............
+.....................
 Finished in 0.05 seconds (0.00s async, 0.05s sync)
-15 tests, 0 failures
+21 tests, 0 failures
 ```
 
 ---
@@ -134,7 +137,7 @@ rpn> 2 *
 -> 30 (integer)  |  Pila: [30 (integer)]
 
 rpn> clear
-Pila vacía []
+Pila vaciada.
 
 rpn> x 10 =
 -> 10 (integer)  |  Pila: [10 (integer)]
@@ -144,13 +147,13 @@ rpn> x 5 + 2 *
 
 rpn> vars
 === Variables Activas en Memoria (Tabla de Símbolos) ===
-Nombre        Tipo        Valor           Ámbito
---------------------------------------------------------
-x             integer     10              Global (0)
-========================================================
+Nombre      Tipo      Valor         Ámbito      Estado
+--------------------------------------------------------------
+x           integer   10            Global (0)  [Activa]
+==============================================================
 
 rpn> clear
-Pila vacía []
+Pila vaciada.
 
 rpn> begin
 rpn[depth:1]> x 50 =
@@ -161,11 +164,11 @@ rpn[depth:1]> x 2 *
 
 rpn[depth:1]> vars
 === Variables Activas en Memoria (Tabla de Símbolos) ===
-Nombre        Tipo        Valor           Ámbito
---------------------------------------------------------
-x             integer     10              Global (0)
-x             integer     50              Local (1)
-========================================================
+Nombre      Tipo      Valor         Ámbito      Estado
+--------------------------------------------------------------
+x           integer   10            Global (0)  [Oculta (Shadowed)]
+x           integer   50            Local (1)   [Activa]
+==============================================================
 
 rpn[depth:1]> end
 rpn> x
@@ -173,15 +176,15 @@ rpn> x
 
 rpn> vars
 === Variables Activas en Memoria (Tabla de Símbolos) ===
-Nombre        Tipo        Valor           Ámbito
---------------------------------------------------------
-x             integer     10              Global (0)
-========================================================
+Nombre      Tipo      Valor         Ámbito      Estado
+--------------------------------------------------------------
+x           integer   10            Global (0)  [Activa]
+==============================================================
 
 rpn> clear
-Pila vacía []
+Pila vaciada.
 
-rpn> 10 20 <
+rpn> 10 20 <=
 -> true (boolean)  |  Pila: [true (boolean)]
 
 rpn> 5 true +

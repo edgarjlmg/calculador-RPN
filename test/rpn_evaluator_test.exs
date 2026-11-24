@@ -22,6 +22,22 @@ defmodule RpnEvaluatorTest do
       assert top == Value.new_float(16.0)
     end
 
+    test "operaciones con números negativos y prefijos positivos explícitos" do
+      {:ok, tokens1} = Parser.parse("-15 +5 +")
+      {:ok, %State{stack: [top1]}} = Evaluator.eval_tokens(tokens1, State.new())
+      assert top1 == Value.new_integer(-10)
+
+      {:ok, tokens2} = Parser.parse("-4.0 -2.5 *")
+      {:ok, %State{stack: [top2]}} = Evaluator.eval_tokens(tokens2, State.new())
+      assert top2 == Value.new_float(10.0)
+    end
+
+    test "división que produce flotante" do
+      {:ok, tokens} = Parser.parse("10 4 /")
+      {:ok, %State{stack: [top]}} = Evaluator.eval_tokens(tokens, State.new())
+      assert top == Value.new_float(2.5)
+    end
+
     test "error de división por cero con enteros" do
       {:ok, tokens} = Parser.parse("10 0 /")
       assert {:error, :division_by_zero, _state} = Evaluator.eval_tokens(tokens, State.new())
@@ -53,14 +69,34 @@ defmodule RpnEvaluatorTest do
       assert top2 == Value.new_boolean(false)
     end
 
+    test "comparación relacional menor o igual (<=) y mayor o igual (>=)" do
+      {:ok, tokens1} = Parser.parse("20 20 <=")
+      {:ok, %State{stack: [top1]}} = Evaluator.eval_tokens(tokens1, State.new())
+      assert top1 == Value.new_boolean(true)
+
+      {:ok, tokens2} = Parser.parse("25 20 >=")
+      {:ok, %State{stack: [top2]}} = Evaluator.eval_tokens(tokens2, State.new())
+      assert top2 == Value.new_boolean(true)
+    end
+
     test "comparación de igualdad y desigualdad" do
       {:ok, tokens1} = Parser.parse("42 42 ==")
       {:ok, %State{stack: [top1]}} = Evaluator.eval_tokens(tokens1, State.new())
       assert top1 == Value.new_boolean(true)
 
-      {:ok, tokens2} = Parser.parse("true false !=")
+      {:ok, tokens2} = Parser.parse("42 42.0 ==")
       {:ok, %State{stack: [top2]}} = Evaluator.eval_tokens(tokens2, State.new())
       assert top2 == Value.new_boolean(true)
+
+      {:ok, tokens3} = Parser.parse("true false !=")
+      {:ok, %State{stack: [top3]}} = Evaluator.eval_tokens(tokens3, State.new())
+      assert top3 == Value.new_boolean(true)
+    end
+
+    test "insensibilidad a mayúsculas en booleanos (TRUE, FALSE)" do
+      {:ok, tokens} = Parser.parse("TRUE FALSE ==")
+      {:ok, %State{stack: [top]}} = Evaluator.eval_tokens(tokens, State.new())
+      assert top == Value.new_boolean(false)
     end
 
     test "error de tipos en operaciones aritméticas con booleanos (5 true +)" do
@@ -72,6 +108,12 @@ defmodule RpnEvaluatorTest do
     test "error de tipos en comparación relacional entre booleano y número" do
       {:ok, tokens} = Parser.parse("true 10 <")
       assert {:error, {:type_error, :lt, :boolean, :integer}, _state} =
+               Evaluator.eval_tokens(tokens, State.new())
+    end
+
+    test "error de tipos en igualdad entre tipos incompatibles (10 true ==)" do
+      {:ok, tokens} = Parser.parse("10 true ==")
+      assert {:error, {:type_error, :eq, :integer, :boolean}, _state} =
                Evaluator.eval_tokens(tokens, State.new())
     end
   end
@@ -90,14 +132,21 @@ defmodule RpnEvaluatorTest do
     end
 
     test "uso de variable en expresión posterior (x 5 + 2 *)" do
-      # 1. Asignar x = 10
       {:ok, t1} = Parser.parse("x 10 =")
       {:ok, state1} = Evaluator.eval_tokens(t1, State.new())
 
-      # 2. Evaluar x 5 + 2 * -> (10 + 5) * 2 = 30
       {:ok, t2} = Parser.parse("x 5 + 2 *")
       {:ok, %State{stack: [result | _]}} = Evaluator.eval_tokens(t2, state1)
       assert result == Value.new_integer(30)
+    end
+
+    test "reasignación usando el valor previo de la misma variable (x x 5 + =)" do
+      {:ok, t1} = Parser.parse("x 10 =")
+      {:ok, state1} = Evaluator.eval_tokens(t1, State.new())
+
+      {:ok, t2} = Parser.parse("x x 5 + =")
+      {:ok, state2} = Evaluator.eval_tokens(t2, state1)
+      assert {:ok, %Value{raw: 15}} = Environment.lookup(state2.env, "x")
     end
 
     test "error al consultar variable no declarada" do
@@ -105,22 +154,34 @@ defmodule RpnEvaluatorTest do
       assert {:error, {:unbound_variable, "variable_inexistente"}, _state} =
                Evaluator.eval_tokens(tokens, State.new())
     end
+
+    test "error de asignación cuando el objetivo no es un identificador (10 20 =)" do
+      {:ok, tokens} = Parser.parse("10 20 =")
+      assert {:error, {:invalid_assignment_target, %Value{raw: 10}}, _state} =
+               Evaluator.eval_tokens(tokens, State.new())
+    end
   end
 
   describe "4. Alcance Local (Scoping y Shadowing con begin / end)" do
     test "shadowing de variables dentro de un bloque temporal" do
-      # Paso 1: Variable global x = 10
       {:ok, t1} = Parser.parse("x 10 =")
       {:ok, s1} = Evaluator.eval_tokens(t1, State.new())
       assert {:ok, %Value{raw: 10}} = Environment.lookup(s1.env, "x")
 
-      # Paso 2: Abrir bloque 'begin' y sobreescribir x = 20
       {:ok, t2} = Parser.parse("begin x 20 =")
       {:ok, s2} = Evaluator.eval_tokens(t2, s1)
       assert {:ok, %Value{raw: 20}} = Environment.lookup(s2.env, "x")
       assert Environment.nesting_level(s2.env) == 1
 
-      # Paso 3: Cerrar bloque 'end' -> x debe restaurar su valor global 10
+      # Verificar que el entorno distinga variables activas y ocultas
+      vars = Environment.variables_with_status(s2.env)
+      assert Enum.any?(vars, fn {name, val, level, status} ->
+        name == "x" and val.raw == 20 and level == 1 and status == :active
+      end)
+      assert Enum.any?(vars, fn {name, val, level, status} ->
+        name == "x" and val.raw == 10 and level == 0 and status == :shadowed
+      end)
+
       {:ok, t3} = Parser.parse("end")
       {:ok, s3} = Evaluator.eval_tokens(t3, s2)
       assert {:ok, %Value{raw: 10}} = Environment.lookup(s3.env, "x")
@@ -143,17 +204,17 @@ defmodule RpnEvaluatorTest do
     end
 
     test "anidamiento múltiple de bloques (profundidad 2)" do
-      {:ok, t1} = Parser.parse("val 1 = begin val 2 = begin val 3 =")
+      {:ok, t1} = Parser.parse("val 1 = BEGIN val 2 = BEGIN val 3 =")
       {:ok, s1} = Evaluator.eval_tokens(t1, State.new())
       assert {:ok, %Value{raw: 3}} = Environment.lookup(s1.env, "val")
       assert Environment.nesting_level(s1.env) == 2
 
-      {:ok, t2} = Parser.parse("end")
+      {:ok, t2} = Parser.parse("END")
       {:ok, s2} = Evaluator.eval_tokens(t2, s1)
       assert {:ok, %Value{raw: 2}} = Environment.lookup(s2.env, "val")
       assert Environment.nesting_level(s2.env) == 1
 
-      {:ok, t3} = Parser.parse("end")
+      {:ok, t3} = Parser.parse("END")
       {:ok, s3} = Evaluator.eval_tokens(t3, s2)
       assert {:ok, %Value{raw: 1}} = Environment.lookup(s3.env, "val")
       assert Environment.nesting_level(s3.env) == 0

@@ -39,7 +39,7 @@ defmodule RpnEvaluator.Types do
     @spec format(t()) :: String.t()
     def format(%__MODULE__{type: :boolean, raw: true}), do: "true"
     def format(%__MODULE__{type: :boolean, raw: false}), do: "false"
-    def format(%__MODULE__{type: :float, raw: raw}), do: :erlang.float_to_binary(raw, [:compact, decimals: 6])
+    def format(%__MODULE__{type: :float, raw: raw}), do: Float.to_string(raw)
     def format(%__MODULE__{type: :integer, raw: raw}), do: Integer.to_string(raw)
   end
 

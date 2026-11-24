@@ -15,6 +15,7 @@ defmodule RpnEvaluator.Environment do
 
   @type scope :: %{String.t() => Value.t()}
   @type env :: [scope()]
+  @type var_status :: :active | :shadowed
 
   @doc """
   Inicializa un nuevo entorno que contiene únicamente el ámbito global (nivel 0).
@@ -78,6 +79,34 @@ defmodule RpnEvaluator.Environment do
       Enum.map(scope, fn {name, val} -> {name, val, level} end)
     end)
     |> Enum.sort_by(fn {name, _val, level} -> {level, name} end)
+  end
+
+  @doc """
+  Devuelve las variables clasificadas con su estado de visibilidad:
+  - `:active`: La variable actualmente resuelta en el ámbito léxico.
+  - `:shadowed`: Ocultada temporalmente por una variable homónima en un ámbito más interno.
+  """
+  @spec variables_with_status(env()) :: [{String.t(), Value.t(), non_neg_integer(), var_status()}]
+  def variables_with_status(scopes) when is_list(scopes) do
+    depth_total = length(scopes) - 1
+
+    # Recorrer de más interno a más externo para detectar cuáles son activas
+    {classified_reversed, _seen} =
+      scopes
+      |> Enum.with_index()
+      |> Enum.reduce({[], MapSet.new()}, fn {scope, idx}, {acc_list, seen_set} ->
+        level = depth_total - idx
+
+        {items_in_scope, new_seen} =
+          Enum.reduce(scope, {[], seen_set}, fn {name, val}, {scope_acc, inner_seen} ->
+            status = if MapSet.member?(inner_seen, name), do: :shadowed, else: :active
+            {[{name, val, level, status} | scope_acc], MapSet.put(inner_seen, name)}
+          end)
+
+        {items_in_scope ++ acc_list, new_seen}
+      end)
+
+    Enum.sort_by(classified_reversed, fn {name, _val, level, _status} -> {level, name} end)
   end
 
   @doc """

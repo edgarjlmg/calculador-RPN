@@ -77,9 +77,9 @@ defmodule RpnEvaluator.Evaluator do
     end
   end
 
-  # 5. Operadores de Comparación Relacional (<, >)
+  # 5. Operadores de Comparación Relacional (<, >, <=, >=)
   defp eval_step({:operator, op}, %State{stack: [b_raw, a_raw | rest_stack], env: env} = state)
-       when op in [:lt, :gt] do
+       when op in [:lt, :gt, :lte, :gte] do
     with {:ok, %Value{} = b} <- resolve_operand(b_raw, env),
          {:ok, %Value{} = a} <- resolve_operand(a_raw, env),
          :ok <- check_numeric_types(op, a, b),
@@ -176,6 +176,8 @@ defmodule RpnEvaluator.Evaluator do
 
   defp apply_relational(:lt, %Value{raw: a}, %Value{raw: b}), do: {:ok, Value.new_boolean(a < b)}
   defp apply_relational(:gt, %Value{raw: a}, %Value{raw: b}), do: {:ok, Value.new_boolean(a > b)}
+  defp apply_relational(:lte, %Value{raw: a}, %Value{raw: b}), do: {:ok, Value.new_boolean(a <= b)}
+  defp apply_relational(:gte, %Value{raw: a}, %Value{raw: b}), do: {:ok, Value.new_boolean(a >= b)}
 
   defp apply_equality(:eq, %Value{raw: a}, %Value{raw: b}), do: {:ok, Value.new_boolean(a == b)}
   defp apply_equality(:neq, %Value{raw: a}, %Value{raw: b}), do: {:ok, Value.new_boolean(a != b)}
