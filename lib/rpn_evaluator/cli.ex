@@ -101,6 +101,17 @@ defmodule RpnEvaluator.CLI do
     IO.puts("-> Asignado #{var_name} = #{Value.format(value)} (#{value.type})  |  Pila: [#{formatted_stack}]")
   end
 
+  defp print_evaluation_result(%State{last_action: {:scope_opened, depth}, stack: stack}) do
+    formatted_stack = format_stack_summary(stack)
+    IO.puts("-> [Ámbito] Bloque local abierto (Profundidad: #{depth})  |  Pila: [#{formatted_stack}]")
+  end
+
+  defp print_evaluation_result(%State{last_action: {:scope_closed, depth}, stack: stack}) do
+    formatted_stack = format_stack_summary(stack)
+    desc = if depth == 0, do: "Global (0)", else: "Profundidad: #{depth}"
+    IO.puts("-> [Ámbito] Bloque local cerrado (Retorno a #{desc})  |  Pila: [#{formatted_stack}]")
+  end
+
   defp print_evaluation_result(%State{stack: []}) do
     IO.puts("Pila vacía []")
   end

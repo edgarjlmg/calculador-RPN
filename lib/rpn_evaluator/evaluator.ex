@@ -122,13 +122,15 @@ defmodule RpnEvaluator.Evaluator do
   # 7. Comandos de Ámbito de Bloque: 'begin' y 'end'
   defp eval_step({:command, :begin}, %State{env: env} = state) do
     new_env = Environment.push_scope(env)
-    {:ok, %State{state | env: new_env, last_action: nil}}
+    depth = Environment.nesting_level(new_env)
+    {:ok, %State{state | env: new_env, last_action: {:scope_opened, depth}}}
   end
 
   defp eval_step({:command, :end}, %State{env: env} = state) do
     case Environment.pop_scope(env) do
       {:ok, new_env} ->
-        {:ok, %State{state | env: new_env, last_action: nil}}
+        depth = Environment.nesting_level(new_env)
+        {:ok, %State{state | env: new_env, last_action: {:scope_closed, depth}}}
 
       {:error, :no_active_scope} ->
         {:error, :no_active_scope}
