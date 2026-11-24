@@ -7,8 +7,8 @@
 erl_crash.dump
 
 # Executable binary
-rpn_evaluator
-rpn_evaluator.bat
+/rpn_evaluator
+/rpn_evaluator.bat
 
 # Language Server
 .elixir_ls/
