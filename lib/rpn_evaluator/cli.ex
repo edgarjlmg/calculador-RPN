@@ -197,7 +197,7 @@ defmodule RpnEvaluator.CLI do
   end
 
   defp print_error({:unbound_variable, name}) do
-    IO.puts("[Error de Variable] La variable '#{name}' no ha sido declarada en el entorno actual ni en ámbitos padres.")
+    IO.puts("[Error de Variable] La variable o identificador '#{name}' no está declarada en memoria. (Escribe 'help' si era un comando).")
   end
 
   defp print_error({:invalid_token, token}) do
