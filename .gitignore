@@ -1,0 +1,19 @@
+# Elixir / Mix
+/_build/
+/deps/
+*.ez
+*.beam
+.fetch
+erl_crash.dump
+
+# Language Server
+.elixir_ls/
+.lexical/
+
+# System / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
