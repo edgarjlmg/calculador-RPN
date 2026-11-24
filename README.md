@@ -1,9 +1,9 @@
 # Evaluador RPN en Elixir (Mini-REPL Postfijo)
 
-**Asignación #1 — Lenguajes de Programación (CAO604)**  
+**Lenguajes de Programación**  
 **Integrantes:**
-- Angel Rodríguez
-- Edgar Martínez
+- Angel Rodriguez C.I: 30.213.906
+- Edgar Martinez C.I: 30.222.959
 
 ---
 
@@ -58,8 +58,8 @@ A continuación se muestra una sesión interactiva en la consola REPL:
 ```text
 ===================================================================
   EVALUADOR RPN EN ELIXIR (Notación Polaca Inversa)
-  Asignación #1 - Lenguajes de Programación (FACYT - UC)
-  Desarrollado por: Angel Rodriguez y Edgar Martinez
+  Lenguajes de Programación
+  Desarrollado por: Angel Rodriguez C.I: 30.213.906 y Edgar Martinez C.I: 30.222.959
 ===================================================================
 
 rpn> 10 5 +

@@ -203,8 +203,8 @@ defmodule RpnEvaluator.CLI do
     IO.puts("""
     ===================================================================
       EVALUADOR RPN EN ELIXIR (Notación Polaca Inversa)
-      Asignación #1 - Lenguajes de Programación (FACYT - UC)
-      Desarrollado por: Angel Rodriguez y Edgar Martinez
+      Lenguajes de Programación
+      Desarrollado por: Angel Rodriguez C.I: 30.213.906 y Edgar Martinez C.I: 30.222.959
     ===================================================================
     Comandos especiales:
       vars   : Muestra la tabla de símbolos y variables por ámbito
