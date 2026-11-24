@@ -29,7 +29,7 @@ El evaluador procesa expresiones matemáticas y lógicas basadas estrictamente e
   - Soporta enteros y flotantes, números negativos (`-15`) y prefijos positivos explícitos (`+5`).
 - **Operaciones Lógicas y Relacionales:** Menor que (`<`), Mayor que (`>`), Menor o igual (`<=`), Mayor o igual (`>=`), Igualdad (`==`) y Desigualdad (`!=`).
 - **Manejo de Errores sin Abortos Abruptos:** Todos los errores se capturan y retornan de forma idiomática mediante tuplas `{:error, reason, state}` usando cláusulas `with` y pattern matching:
-  - **División por cero:** `{:error, :division_by_zero}` (ej. `10 0 /`).
+  - **División por cero:** `{:error, :division_by_zero}` interceptado mediante cláusulas de guarda (*guards*) ante cualquier representación numérica de cero (`0`, `0.0`, `-0.0`).
   - **Pila insuficiente (Stack underflow):** `{:error, :stack_underflow}` cuando un operador requiere más operandos de los presentes.
   - **Tokens inválidos:** `{:error, {:invalid_token, token}}` para caracteres no reconocidos.
   - **Destino inválido de asignación:** `{:error, {:invalid_assignment_target, target}}` si se intenta asignar a un literal (ej. `10 20 =`).
@@ -44,7 +44,7 @@ El evaluador procesa expresiones matemáticas y lógicas basadas estrictamente e
 
 ### 2.3. Variables y Paso de Parámetros
 - **Declaración y Actualización en Notación Postfija:**
-  - `x 10 =` asigna `10` a la variable `x`.
+  - `x 10 =` asigna `10` a la variable `x` y consume limpiamente los operandos de la pila, evitando polución de datos intermedios.
   - `x 5 2 + =` evalúa la subexpresión `5 + 2 = 7` y vincula `7` a `x`.
   - `x 5 + 2 *` recupera el valor de `x` y evalúa `(x + 5) * 2`.
   - `x x 1 + =` reasigna a `x` su valor previo incrementado en 1.
@@ -140,7 +140,7 @@ rpn> clear
 Pila vaciada.
 
 rpn> x 10 =
--> 10 (integer)  |  Pila: [10 (integer)]
+-> Asignado x = 10 (integer)  |  Pila: []
 
 rpn> x 5 + 2 *
 -> 30 (integer)  |  Pila: [30 (integer)]
@@ -157,7 +157,7 @@ Pila vaciada.
 
 rpn> begin
 rpn[depth:1]> x 50 =
--> 50 (integer)  |  Pila: [50 (integer)]
+-> Asignado x = 50 (integer)  |  Pila: []
 
 rpn[depth:1]> x 2 *
 -> 100 (integer)  |  Pila: [100 (integer)]

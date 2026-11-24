@@ -43,9 +43,12 @@ defmodule RpnEvaluatorTest do
       assert {:error, :division_by_zero, _state} = Evaluator.eval_tokens(tokens, State.new())
     end
 
-    test "error de división por cero con flotantes" do
-      {:ok, tokens} = Parser.parse("10.0 0.0 /")
-      assert {:error, :division_by_zero, _state} = Evaluator.eval_tokens(tokens, State.new())
+    test "error de división por cero con flotantes y cero negativo" do
+      {:ok, tokens1} = Parser.parse("10.0 0.0 /")
+      assert {:error, :division_by_zero, _state} = Evaluator.eval_tokens(tokens1, State.new())
+
+      {:ok, tokens2} = Parser.parse("10.0 -0.0 /")
+      assert {:error, :division_by_zero, _state} = Evaluator.eval_tokens(tokens2, State.new())
     end
 
     test "error de pila insuficiente (stack underflow)" do
@@ -121,22 +124,28 @@ defmodule RpnEvaluatorTest do
   describe "3. Variables y Paso de Parámetros" do
     test "declaración y asignación de variables (x 10 =)" do
       {:ok, tokens} = Parser.parse("x 10 =")
-      {:ok, %State{env: env}} = Evaluator.eval_tokens(tokens, State.new())
+      {:ok, %State{env: env, stack: stack, last_action: action}} =
+        Evaluator.eval_tokens(tokens, State.new())
+
       assert {:ok, %Value{raw: 10, type: :integer}} = Environment.lookup(env, "x")
+      assert stack == [] # La asignación consume limpiamente los operandos
+      assert action == {:assigned, "x", Value.new_integer(10)}
     end
 
     test "evaluación y asignación compuesta (x 5 2 + =)" do
       {:ok, tokens} = Parser.parse("x 5 2 + =")
-      {:ok, %State{env: env}} = Evaluator.eval_tokens(tokens, State.new())
+      {:ok, %State{env: env, stack: stack}} = Evaluator.eval_tokens(tokens, State.new())
       assert {:ok, %Value{raw: 7, type: :integer}} = Environment.lookup(env, "x")
+      assert stack == []
     end
 
     test "uso de variable en expresión posterior (x 5 + 2 *)" do
       {:ok, t1} = Parser.parse("x 10 =")
       {:ok, state1} = Evaluator.eval_tokens(t1, State.new())
+      assert state1.stack == []
 
       {:ok, t2} = Parser.parse("x 5 + 2 *")
-      {:ok, %State{stack: [result | _]}} = Evaluator.eval_tokens(t2, state1)
+      {:ok, %State{stack: [result]}} = Evaluator.eval_tokens(t2, state1)
       assert result == Value.new_integer(30)
     end
 
@@ -147,6 +156,7 @@ defmodule RpnEvaluatorTest do
       {:ok, t2} = Parser.parse("x x 5 + =")
       {:ok, state2} = Evaluator.eval_tokens(t2, state1)
       assert {:ok, %Value{raw: 15}} = Environment.lookup(state2.env, "x")
+      assert state2.stack == []
     end
 
     test "error al consultar variable no declarada" do
@@ -173,7 +183,6 @@ defmodule RpnEvaluatorTest do
       assert {:ok, %Value{raw: 20}} = Environment.lookup(s2.env, "x")
       assert Environment.nesting_level(s2.env) == 1
 
-      # Verificar que el entorno distinga variables activas y ocultas
       vars = Environment.variables_with_status(s2.env)
       assert Enum.any?(vars, fn {name, val, level, status} ->
         name == "x" and val.raw == 20 and level == 1 and status == :active

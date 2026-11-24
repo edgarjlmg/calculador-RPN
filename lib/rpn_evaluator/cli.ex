@@ -56,14 +56,14 @@ defmodule RpnEvaluator.CLI do
 
       "clear" ->
         IO.puts("Pila vaciada.")
-        loop(%State{state | stack: []})
+        loop(%State{state | stack: [], last_action: nil})
 
       "help" ->
         print_help()
         loop(state)
 
       _other ->
-        eval_expression(input, state)
+        eval_expression(input, %State{state | last_action: nil})
     end
   end
 
@@ -94,19 +94,26 @@ defmodule RpnEvaluator.CLI do
     end
   end
 
+  defp print_evaluation_result(%State{last_action: {:assigned, var_name, %Value{} = value}, stack: stack}) do
+    formatted_stack = format_stack_summary(stack)
+    IO.puts("-> Asignado #{var_name} = #{Value.format(value)} (#{value.type})  |  Pila: [#{formatted_stack}]")
+  end
+
   defp print_evaluation_result(%State{stack: []}) do
     IO.puts("Pila vacía []")
   end
 
   defp print_evaluation_result(%State{stack: stack}) do
-    formatted_items =
-      stack
-      |> Enum.reverse()
-      |> Enum.map(&format_stack_item/1)
-      |> Enum.join(", ")
-
     [top | _] = stack
-    IO.puts("-> #{format_stack_item(top)}  |  Pila: [#{formatted_items}]")
+    formatted_stack = format_stack_summary(stack)
+    IO.puts("-> #{format_stack_item(top)}  |  Pila: [#{formatted_stack}]")
+  end
+
+  defp format_stack_summary(stack) do
+    stack
+    |> Enum.reverse()
+    |> Enum.map(&format_stack_item/1)
+    |> Enum.join(", ")
   end
 
   defp print_stack([]) do

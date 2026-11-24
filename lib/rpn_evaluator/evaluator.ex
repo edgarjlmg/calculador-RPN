@@ -44,21 +44,22 @@ defmodule RpnEvaluator.Evaluator do
 
   # 1. Valores literales (enteros, flotantes, booleanos) -> apilar directamente
   defp eval_step({:value, %Value{} = val}, %State{stack: stack} = state) do
-    {:ok, %State{state | stack: [val | stack]}}
+    {:ok, %State{state | stack: [val | stack], last_action: nil}}
   end
 
   # 2. Identificadores -> apilar como referencia simbólica pendiente
   defp eval_step({:identifier, name}, %State{stack: stack} = state) do
-    {:ok, %State{state | stack: [{:var_ref, name} | stack]}}
+    {:ok, %State{state | stack: [{:var_ref, name} | stack], last_action: nil}}
   end
 
   # 3. Operador de Asignación Postfija '=' (ej: x 10 =)
+  # En RPN estricto, la asignación consume tanto el valor como el identificador objetivo
   defp eval_step({:operator, :assign}, %State{stack: [raw_val, target | rest_stack], env: env} = state) do
     with {:ok, %Value{} = value} <- resolve_operand(raw_val, env),
          {:ok, var_name} <- extract_var_name(target) do
       new_env = Environment.bind(env, var_name, value)
-      new_stack = [value | rest_stack]
-      {:ok, %State{stack: new_stack, env: new_env}}
+      new_stack = rest_stack
+      {:ok, %State{state | stack: new_stack, env: new_env, last_action: {:assigned, var_name, value}}}
     end
   end
 
@@ -73,7 +74,7 @@ defmodule RpnEvaluator.Evaluator do
          {:ok, %Value{} = a} <- resolve_operand(a_raw, env),
          :ok <- check_numeric_types(op, a, b),
          {:ok, %Value{} = result} <- apply_arithmetic(op, a, b) do
-      {:ok, %State{state | stack: [result | rest_stack]}}
+      {:ok, %State{state | stack: [result | rest_stack], last_action: nil}}
     end
   end
 
@@ -84,7 +85,7 @@ defmodule RpnEvaluator.Evaluator do
          {:ok, %Value{} = a} <- resolve_operand(a_raw, env),
          :ok <- check_numeric_types(op, a, b),
          {:ok, %Value{} = result} <- apply_relational(op, a, b) do
-      {:ok, %State{state | stack: [result | rest_stack]}}
+      {:ok, %State{state | stack: [result | rest_stack], last_action: nil}}
     end
   end
 
@@ -95,7 +96,7 @@ defmodule RpnEvaluator.Evaluator do
          {:ok, %Value{} = a} <- resolve_operand(a_raw, env),
          :ok <- check_compatible_equality_types(op, a, b),
          {:ok, %Value{} = result} <- apply_equality(op, a, b) do
-      {:ok, %State{state | stack: [result | rest_stack]}}
+      {:ok, %State{state | stack: [result | rest_stack], last_action: nil}}
     end
   end
 
@@ -106,13 +107,13 @@ defmodule RpnEvaluator.Evaluator do
   # 7. Comandos de Ámbito de Bloque: 'begin' y 'end'
   defp eval_step({:command, :begin}, %State{env: env} = state) do
     new_env = Environment.push_scope(env)
-    {:ok, %State{state | env: new_env}}
+    {:ok, %State{state | env: new_env, last_action: nil}}
   end
 
   defp eval_step({:command, :end}, %State{env: env} = state) do
     case Environment.pop_scope(env) do
       {:ok, new_env} ->
-        {:ok, %State{state | env: new_env}}
+        {:ok, %State{state | env: new_env, last_action: nil}}
 
       {:error, :no_active_scope} ->
         {:error, :no_active_scope}
@@ -121,7 +122,7 @@ defmodule RpnEvaluator.Evaluator do
 
   # 8. Comando de limpieza de pila 'clear'
   defp eval_step({:command, :clear}, %State{} = state) do
-    {:ok, %State{state | stack: []}}
+    {:ok, %State{state | stack: [], last_action: nil}}
   end
 
   # 9. Otros comandos de inspección (vars, stack) que no alteran el flujo en este paso
@@ -159,8 +160,10 @@ defmodule RpnEvaluator.Evaluator do
   defp apply_arithmetic(:sub, %Value{raw: a}, %Value{raw: b}), do: {:ok, wrap_number(a - b)}
   defp apply_arithmetic(:mul, %Value{raw: a}, %Value{raw: b}), do: {:ok, wrap_number(a * b)}
 
-  defp apply_arithmetic(:div, _a, %Value{raw: 0}), do: {:error, :division_by_zero}
-  defp apply_arithmetic(:div, _a, %Value{raw: 0.0}), do: {:error, :division_by_zero}
+  # Detección robusta de división por cero con cláusula de guarda (cubre 0, 0.0, -0.0)
+  defp apply_arithmetic(:div, _a, %Value{raw: b}) when b == 0 or b == 0.0 do
+    {:error, :division_by_zero}
+  end
 
   defp apply_arithmetic(:div, %Value{type: :integer, raw: a}, %Value{type: :integer, raw: b}) do
     if rem(a, b) == 0 do

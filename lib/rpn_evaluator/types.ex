@@ -48,14 +48,16 @@ defmodule RpnEvaluator.Types do
     Representa el estado completo del evaluador:
     - `stack`: Pila de operandos (Valores concretos o referencias a identificadores pendientes).
     - `env`: Lista de mapas que representan los ámbitos léxicos activos (Scoping y Shadowing).
+    - `last_action`: Registro de la última acción ejecutada (ej. asignación) para feedback en REPL.
     """
-    @enforce_keys [:stack, :env]
-    defstruct [:stack, :env]
+    defstruct [stack: [], env: [%{}], last_action: nil]
 
     @type stack_item :: Value.t() | {:var_ref, String.t()}
+    @type action :: {:assigned, String.t(), Value.t()} | nil
     @type t :: %__MODULE__{
       stack: list(stack_item()),
-      env: list(map())
+      env: list(map()),
+      last_action: action()
     }
 
     @doc "Crea un nuevo estado inicial con pila vacía y ámbito global."
@@ -63,7 +65,8 @@ defmodule RpnEvaluator.Types do
     def new do
       %__MODULE__{
         stack: [],
-        env: [%{}]
+        env: [%{}],
+        last_action: nil
       }
     end
   end

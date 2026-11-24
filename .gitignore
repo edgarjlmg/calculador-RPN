@@ -17,3 +17,7 @@ Thumbs.db
 .idea/
 *.swp
 *~
+
+# Excluir documentos PDF y generador de reporte del repositorio
+*.pdf
+generate_report.py
