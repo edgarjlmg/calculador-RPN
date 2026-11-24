@@ -6,18 +6,33 @@ defmodule RpnEvaluator.Evaluator do
   2. Paso explícito de parámetros: Las subrutinas reciben `(tokens, stack, env)` explícitamente.
   3. Chequeo dinámico y fuerte de tipos: Distinción estricta de tipos numéricos y booleanos.
   4. Manejo funcional de errores: Retorno consistente de tuplas `{:ok, ...}` y `{:error, ...}`.
+  5. Atomicidad / Transaccionalidad: Si una línea falla, el estado se preserva intacto sin corrupciones.
   """
 
   alias RpnEvaluator.Types.{Value, State}
   alias RpnEvaluator.Environment
 
   @doc """
-  Evalúa una lista de tokens sobre el estado actual (pila y entorno pasados explícitamente).
-  Retorna `{:ok, new_state}` o `{:error, reason, original_state}`.
+  Evalúa una lista de tokens sobre el estado actual.
+  Si ocurre algún error durante la evaluación, retorna `{:error, reason, original_state}`
+  garantizando que la pila y el entorno no queden en un estado parcialmente evaluado o corrupto.
   """
   @spec eval_tokens([RpnEvaluator.Parser.token()], State.t()) ::
           {:ok, State.t()} | {:error, any(), State.t()}
-  def eval_tokens([], %State{stack: stack, env: env} = state) do
+  def eval_tokens(tokens, %State{} = state) do
+    case do_eval_tokens(tokens, state) do
+      {:ok, %State{} = new_state} ->
+        {:ok, new_state}
+
+      {:error, reason, _dirty_state} ->
+        {:error, reason, state}
+
+      {:error, reason} ->
+        {:error, reason, state}
+    end
+  end
+
+  defp do_eval_tokens([], %State{stack: stack, env: env} = state) do
     # Resolver referencias pendientes que quedaron en la pila (ej: el usuario evaluó solo 'x')
     case resolve_stack(stack, env, []) do
       {:ok, resolved_stack} ->
@@ -28,10 +43,10 @@ defmodule RpnEvaluator.Evaluator do
     end
   end
 
-  def eval_tokens([token | rest], %State{} = state) do
+  defp do_eval_tokens([token | rest], %State{} = state) do
     case eval_step(token, state) do
       {:ok, %State{} = next_state} ->
-        eval_tokens(rest, next_state)
+        do_eval_tokens(rest, next_state)
 
       {:error, reason} ->
         {:error, reason, state}

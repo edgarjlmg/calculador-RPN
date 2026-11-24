@@ -165,6 +165,21 @@ defmodule RpnEvaluatorTest do
                Evaluator.eval_tokens(tokens, State.new())
     end
 
+    test "recuperación y preservación de estado limpio tras error de variable no declarada" do
+      state0 = State.new()
+      # 1. Evaluar una expresión con error (x no declarada)
+      {:ok, tokens_error} = Parser.parse("10 5 x")
+      assert {:error, {:unbound_variable, "x"}, state_returned} =
+               Evaluator.eval_tokens(tokens_error, state0)
+      assert state_returned.stack == []
+
+      # 2. La siguiente expresión válida evalúa correctamente sin residuos
+      {:ok, tokens_valid} = Parser.parse("10 5 + 2 *")
+      assert {:ok, %State{stack: [result]}} =
+               Evaluator.eval_tokens(tokens_valid, state_returned)
+      assert result == Value.new_integer(30)
+    end
+
     test "error de asignación cuando el objetivo no es un identificador (10 20 =)" do
       {:ok, tokens} = Parser.parse("10 20 =")
       assert {:error, {:invalid_assignment_target, %Value{raw: 10}}, _state} =

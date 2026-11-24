@@ -68,18 +68,20 @@ defmodule RpnEvaluator.CLI do
   end
 
   defp eval_expression(input, %State{} = state) do
+    clean_state = %State{state | last_action: nil}
+
     with {:ok, tokens} <- Parser.parse(input),
-         {:ok, new_state} <- Evaluator.eval_tokens(tokens, state) do
+         {:ok, new_state} <- Evaluator.eval_tokens(tokens, clean_state) do
       print_evaluation_result(new_state)
       loop(new_state)
     else
-      {:error, reason, old_state} ->
+      {:error, reason, _dirty_state} ->
         print_error(reason)
-        loop(old_state)
+        loop(clean_state)
 
       {:error, reason} ->
         print_error(reason)
-        loop(state)
+        loop(clean_state)
     end
   end
 
